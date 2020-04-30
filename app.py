@@ -15,18 +15,6 @@ redis_db = redis.Redis(
     host="redis", port="6379", db=1, charset="utf-8", decode_responses=True
 )
 
-# Initialize timer in redis
-redis_db.mset({"minute": 0, "second": 0})
-
-# Add periodic tasks
-celery_beat_schedule = {
-    "time_scheduler": {
-        "task": "app.timer",
-        # Run every second
-        "schedule": 1.0,
-    }
-}
-
 # Initialize Celery and update its config
 celery = Celery(app.name)
 celery.conf.update(
@@ -36,36 +24,15 @@ celery.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    beat_schedule=celery_beat_schedule,
 )
-
 
 @app.route("/")
 def index_view():
-    return "Flask-celery task scheduler!"
-
-
-@app.route("/timer")
-def timer_view():
-    time_counter = redis_db.mget(["minute", "second"])
-    return f"Minute: {time_counter[0]}, Second: {time_counter[1]}"
-
+    return "Flask-celery task scheduler with Postgres database!"
 
 @celery.task
-def timer():
-    second_counter = int(redis_db.get("second")) + 1
-    if second_counter >= 59:
-        # Reset the counter
-        redis_db.set("second", 0)
-        # Increment the minute
-        redis_db.set("minute", int(redis_db.get("minute")) + 1)
-    else:
-        # Increment the second
-        redis_db.set("second", second_counter)
-
-    logger.critical("second")
-    logger.critical(redis_db.get("second"))
-
+def create_node():
+    pass
 
 if __name__ == "__main__":
     app.run()

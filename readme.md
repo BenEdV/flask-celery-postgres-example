@@ -1,9 +1,9 @@
-## celery-timer
+## Flask Celery Postgres Example
 
-A timer application created to demonstrate Celery task scheduler
+This is minimal example of a flask app using Celery for background tasks and a Postgres database that is accessed by flask and celery.
 
 #### Instructions
-
-```
+To run the application use
+```sh
 docker-compose up --build
 ```
