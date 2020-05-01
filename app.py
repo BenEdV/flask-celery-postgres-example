@@ -1,13 +1,22 @@
-from flask import Flask
 from celery import Celery
+from celery.signals import task_postrun
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import psycopg2
 import redis
 
-import psycopg2
+from datetime import datetime, timedelta
+import logging
+import pytz
 import time
 
 # Add Redis URL configurations
 app = Flask(__name__)
+
+logging.basicConfig(
+    filename='flask.log',
+    level=logging.DEBUG,
+    format="%(asctime)s:%(levelname)s:%(message)s")
 
 app.config["CELERY_BROKER_URL"] = "redis://redis:6379/0"
 app.config["CELERY_RESULT_BACKEND"] = "redis://redis:6379/0"
@@ -78,15 +87,15 @@ def node_view(node_id):
 
 @app.route("/node")
 def new_node_view():
-    create_node.delay()
-    return f"Created new node. Please wait 10 seconds to visit the node :)"
+    create_node.apply_async(eta=datetime.now(tz=pytz.timezone("Europe/Amsterdam")) + timedelta(seconds=3))
+    return f"Created new node. Please wait 3 seconds to visit the node :)"
 
 # Tasks
 @celery.task
 def create_node():
     node = Node()
     node.visits = 0
-    time.sleep(10)
+    logging.info(f"Created new node")
     db.session.add(node)
     db.session.commit()
 
@@ -94,7 +103,17 @@ def create_node():
 def inc_node(node_id):
     node = Node.query.get(node_id)
     node.visits += 1
+    logging.info(f"Increased visits of node {node.id} to {node.visits}")
     db.session.commit()
+
+@task_postrun.connect
+def close_session(*args, **kwargs):
+    # https://stackoverflow.com/questions/12044776/how-to-use-flask-sqlalchemy-in-a-celery-task
+    # Flask SQLAlchemy will automatically create new sessions for you from
+    # a scoped session factory, given that we are maintaining the same app
+    # context, this ensures tasks have a fresh session (e.g. session errors
+    # won't propagate across tasks)
+    db.session.remove()
 
 # Run server
 if __name__ == "__main__":
